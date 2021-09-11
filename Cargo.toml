@@ -23,4 +23,3 @@ quad-gamepad = "0.2.0-alpha"
 #macroquad-tiled = { path = "../macroquad/tiled" }
 #macroquad-platformer = { path = "../macroquad/physics-platformer" }
 #macroquad-profiler = { path = "../macroquad/profiler" }
-
