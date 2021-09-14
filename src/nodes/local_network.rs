@@ -36,7 +36,7 @@ impl LocalNetwork {
 }
 
 impl Node for LocalNetwork {
-    fn fixed_update(node: RefMut<Self>) {
+    fn fixed_update(mut node: RefMut<Self>) {
         scene::get_node(node.player1).apply_input(input::collect_input(node.player1_input));
         scene::get_node(node.player2).apply_input(input::collect_input(node.player2_input));
 
