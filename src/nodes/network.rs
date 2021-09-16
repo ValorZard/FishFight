@@ -9,7 +9,7 @@ use crate::{
     nodes::Player,
 };
 
-use std::{net::UdpSocket, sync::mpsc};
+use std::sync::mpsc;
 
 use nanoserde::{DeBin, SerBin};
 
@@ -28,13 +28,12 @@ pub struct Network {
     player1: Handle<Player>,
     player2: Handle<Player>,
 
-    self_id: usize,
-
     frame: u64,
 
     tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
 
+    self_id: usize,
     // all the inputs from the beginning of the game
     // will optimize memory later
     frames_buffer: Vec<[Option<Input>; 2]>,
@@ -59,29 +58,28 @@ impl Network {
     const CONSTANT_DELAY: usize = 8;
 
     pub fn new(
+        id: usize,
+        socket: std::net::UdpSocket,
         input_scheme: InputScheme,
         player1: Handle<Player>,
         player2: Handle<Player>,
-        controller_id: usize,
-        self_addr: &str,
         other_addr: &str,
     ) -> Network {
-        let self_socket = UdpSocket::bind(self_addr).unwrap();
-        self_socket.connect(other_addr).unwrap();
+        socket.connect(other_addr).unwrap();
 
-        self_socket.set_nonblocking(true).unwrap();
+        socket.set_nonblocking(true).unwrap();
 
         let (tx, rx) = mpsc::channel::<Message>();
 
         let (tx1, rx1) = mpsc::channel::<Message>();
 
         {
-            let self_socket = self_socket.try_clone().unwrap();
+            let socket = socket.try_clone().unwrap();
             std::thread::spawn(move || {
-                let self_socket = self_socket;
+                let socket = socket;
                 loop {
                     let mut data = [0; 256];
-                    match self_socket.recv_from(&mut data) {
+                    match socket.recv_from(&mut data) {
                         Err(..) => {} //println!("waiting for other player"),
                         Ok((count, _)) => {
                             assert!(count < 256);
@@ -101,17 +99,17 @@ impl Network {
                 if let Ok(message) = rx.recv() {
                     let data = SerBin::serialize_bin(&message);
 
-                    let self_socket = self_socket.try_clone().unwrap();
+                    let socket = socket.try_clone().unwrap();
                     let other_addr = other_addr.clone();
                     // std::thread::spawn(move || {
                     //     std::thread::sleep(std::time::Duration::from_millis(
                     //         macroquad::rand::gen_range(0, 150),
                     //     ));
                     //     if macroquad::rand::gen_range(0, 100) > 20 {
-                    //         let _ = self_socket.send_to(&data, &other_addr);
+                    //         let _ = socket.send_to(&data, &other_addr);
                     //     }
                     // });
-                    let _ = self_socket.send_to(&data, &other_addr);
+                    socket.send_to(&data, &other_addr).unwrap();
                 }
             }
         });
@@ -127,14 +125,14 @@ impl Network {
         #[allow(clippy::needless_range_loop)]
         for _ in 0..Self::CONSTANT_DELAY {
             let mut frame = [None; 2];
-            frame[controller_id as usize] = Some(Input::default());
+            frame[id as usize] = Some(Input::default());
 
             frames_buffer.push(frame);
         }
 
         Network {
+            self_id: id,
             input_scheme,
-            self_id: controller_id,
             player1,
             player2,
             frame: Self::CONSTANT_DELAY as u64,
